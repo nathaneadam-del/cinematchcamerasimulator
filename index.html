@@ -1069,8 +1069,29 @@ function onImagesLoaded(files, folderName) {
   loadConfigs();
   images.forEach((img, idx) => getConfig(img.name, idx));
   saveConfigs();
-  document.getElementById('load-indicator').style.display = 'none';
-  renderSetupPreview(folderName || 'Images');
+  preloadImages(folderName || 'Images');
+}
+
+function preloadImages(folderName) {
+  const total = images.length;
+  let loaded = 0;
+  const statusEl  = document.getElementById('load-status');
+  const spinnerEl = document.getElementById('load-spinner');
+  statusEl.textContent  = `Loading images… 0 / ${total}`;
+  spinnerEl.textContent = '⏳';
+
+  images.forEach(img => {
+    const el = new Image();
+    el.onload = el.onerror = () => {
+      loaded++;
+      statusEl.textContent = `Loading images… ${loaded} / ${total}`;
+      if (loaded === total) {
+        document.getElementById('load-indicator').style.display = 'none';
+        renderSetupPreview(folderName);
+      }
+    };
+    el.src = img.url;
+  });
 }
 
 function renderSetupPreview(folderName) {
