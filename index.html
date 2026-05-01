@@ -1,0 +1,1656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magic Hour: Camera Simulator</title>
+<style>
+/* ── RESET & VARIABLES ──────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:       #0a0a0f;
+  --sf:       #12121a;
+  --sf2:      #1a1a26;
+  --bd:       #2a2a3a;
+  --acc:      #e8c547;
+  --acc2:     #4fc3f7;
+  --red:      #ef5350;
+  --grn:      #66bb6a;
+  --tx:       #e0e0e0;
+  --txd:      #888;
+  --font:     'Courier New', Courier, monospace;
+}
+html, body { height: 100%; overflow: hidden; }
+body { background: var(--bg); color: var(--tx); font-family: var(--font); }
+
+/* ── SCREEN SYSTEM ──────────────────────────────────────────────── */
+.screen {
+  display: none;
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+.screen.active { display: flex; }
+
+/* ── SHARED BUTTONS ─────────────────────────────────────────────── */
+.btn-acc {
+  background: var(--acc); color: #000; border: none;
+  font-family: var(--font); font-size: 12px; font-weight: bold;
+  letter-spacing: 2px; text-transform: uppercase; cursor: pointer;
+  border-radius: 2px; padding: 10px 24px; transition: opacity .15s;
+}
+.btn-acc:hover { opacity: .85; }
+.btn-out {
+  background: transparent; border: 1px solid var(--bd); color: var(--tx);
+  font-family: var(--font); font-size: 11px; font-weight: bold;
+  letter-spacing: 2px; text-transform: uppercase; cursor: pointer;
+  border-radius: 2px; padding: 9px 20px; transition: border-color .15s, color .15s;
+}
+.btn-out:hover { border-color: var(--acc); color: var(--acc); }
+.btn-sm {
+  background: var(--sf2); border: 1px solid var(--bd); color: var(--tx);
+  font-family: var(--font); font-size: 10px; font-weight: bold;
+  letter-spacing: 2px; text-transform: uppercase; cursor: pointer;
+  border-radius: 2px; padding: 7px 14px; transition: border-color .15s, color .15s;
+}
+.btn-sm:hover { border-color: var(--acc); color: var(--acc); }
+.btn-sm.acc { background: var(--acc); color: #000; border-color: var(--acc); }
+.btn-sm.acc:hover { opacity: .85; color: #000; }
+
+/* ── SETUP SCREEN ───────────────────────────────────────────────── */
+#screen-setup {
+  align-items: center; justify-content: center; gap: 28px;
+  background: radial-gradient(ellipse at center, #111120 0%, var(--bg) 70%);
+}
+.setup-logo { font-size: 30px; letter-spacing: 6px; color: var(--acc); font-weight: bold; }
+.setup-sub  { font-size: 11px; letter-spacing: 3px; color: var(--txd); text-transform: uppercase; margin-top: -20px; }
+.dropzone {
+  width: 460px; border: 2px dashed var(--bd); border-radius: 4px;
+  padding: 36px 32px; text-align: center; cursor: pointer;
+  transition: border-color .2s, background .2s;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.dropzone:hover, .dropzone.over { border-color: var(--acc); background: rgba(232,197,71,.04); }
+.dz-icon { font-size: 36px; }
+.dz-main { font-size: 15px; color: var(--tx); font-weight: bold; }
+.dz-hint { font-size: 11px; color: var(--txd); }
+.dz-or   { font-size: 10px; color: var(--txd); letter-spacing: 2px; }
+.setup-loaded {
+  display: none; flex-direction: column; gap: 12px; width: 460px;
+}
+.setup-loaded.show { display: flex; }
+.setup-loaded-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; color: var(--txd);
+}
+.setup-loaded-hdr strong { color: var(--acc); }
+.setup-thumbs {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  max-height: 100px; overflow-y: auto;
+}
+.setup-thumb {
+  width: 58px; height: 38px; object-fit: cover;
+  border-radius: 2px; border: 1px solid var(--bd);
+}
+.setup-actions { display: flex; gap: 10px; }
+.setup-actions .btn-out { flex: 1; }
+.setup-actions .btn-acc { flex: 2; font-size: 13px; }
+#tutorial-video {
+  width: 460px; aspect-ratio: 16/9;
+  border: 1px solid var(--bd); border-radius: 4px; overflow: hidden;
+  background: #000;
+}
+#tutorial-video iframe { width: 100%; height: 100%; display: block; border: none; }
+.tutorial-placeholder {
+  width: 100%; height: 100%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px;
+  background: var(--sf); cursor: default;
+}
+.tutorial-play { font-size: 32px; color: var(--acc); }
+.tutorial-lbl  { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--tx); }
+.tutorial-hint { font-size: 10px; color: var(--txd); }
+#load-indicator { display: flex; align-items: center; gap: 10px; }
+
+/* ── EDITOR SCREEN ──────────────────────────────────────────────── */
+#screen-editor { background: var(--bg); }
+.ed-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 24px; background: var(--sf); border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+.ed-bar-title { font-size: 13px; letter-spacing: 3px; color: var(--acc); text-transform: uppercase; font-weight: bold; }
+.ed-bar-right { display: flex; align-items: center; gap: 12px; }
+.ed-bar-hint  { font-size: 10px; color: var(--txd); letter-spacing: 1px; }
+#editor-list  { flex: 1; overflow-y: auto; padding: 12px 24px 24px; display: flex; flex-direction: column; gap: 10px; }
+
+.ecard { background: var(--sf); border: 1px solid var(--bd); border-radius: 3px; }
+.ecard-hdr {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  cursor: pointer; user-select: none; border-radius: 3px;
+}
+.ecard-hdr:hover { background: var(--sf2); }
+.ecard-thumb { width: 76px; height: 50px; object-fit: cover; border-radius: 2px; flex-shrink: 0; }
+.ecard-meta  { flex: 1; min-width: 0; }
+.ecard-file  { font-size: 10px; color: var(--txd); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ecard-ttl   { font-size: 13px; color: var(--tx); font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ecard-arr   { color: var(--txd); font-size: 14px; flex-shrink: 0; transition: transform .2s; }
+.ecard.open .ecard-arr { transform: rotate(180deg); }
+.ecard-body  { display: none; }
+.ecard.open .ecard-body {
+  display: block; padding: 14px 16px 16px; border-top: 2px solid var(--acc);
+  background: var(--sf2);
+}
+.er1 { display: flex; flex-direction: row; gap: 12px; margin-bottom: 14px; }
+.er1 > .ef:first-child { flex: 1; }
+.er1 > .ef:last-child  { flex: 2; }
+.er2 { display: flex; flex-direction: row; flex-wrap: wrap; gap: 10px; }
+.er2 > .ef { flex: 1 1 120px; }
+.ef  { display: flex; flex-direction: column; gap: 6px; }
+.ef-lbl { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--txd); }
+.ef input[type="text"], .ef input[type="number"] {
+  background: var(--bg); border: 1px solid var(--bd); color: var(--tx);
+  font-family: var(--font); font-size: 12px; padding: 7px 8px;
+  border-radius: 2px; outline: none; width: 100%; height: 32px; box-sizing: border-box;
+}
+.ef select {
+  background: var(--bg); border: 1px solid var(--bd); color: var(--tx);
+  font-family: var(--font); font-size: 12px; padding: 6px 8px;
+  border-radius: 2px; outline: none; width: 100%; height: 32px; box-sizing: border-box; cursor: pointer;
+}
+.ef textarea {
+  background: var(--bg); border: 1px solid var(--bd); color: var(--tx);
+  font-family: var(--font); font-size: 12px; padding: 8px;
+  border-radius: 2px; outline: none; width: 100%; height: 100px;
+  min-height: 100px; resize: vertical; box-sizing: border-box; line-height: 1.5;
+}
+.ef input:focus, .ef select:focus, .ef textarea:focus { border-color: var(--acc); outline: none; }
+.ef select option { background: var(--sf); }
+.ef-lbl-row { display: flex; align-items: center; justify-content: space-between; }
+.ef-regen {
+  background: none; border: 1px solid var(--bd); color: var(--txd);
+  font-family: var(--font); font-size: 9px; letter-spacing: 1px;
+  padding: 3px 8px; cursor: pointer; border-radius: 2px; height: 22px;
+  transition: border-color .15s, color .15s;
+}
+.ef-regen:hover { border-color: var(--acc); color: var(--acc); }
+
+/* ── GAME SCREEN ────────────────────────────────────────────────── */
+#screen-game { overflow: hidden; }
+#topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 20px; background: var(--sf); border-bottom: 1px solid var(--bd);
+  flex-shrink: 0; gap: 12px;
+}
+.tb-logo { font-size: 13px; letter-spacing: 3px; color: var(--acc); font-weight: bold; white-space: nowrap; }
+.tb-stats { display: flex; gap: 28px; flex: 1; justify-content: center; }
+.stat { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.stat-l { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--txd); }
+.stat-v { font-size: 17px; font-weight: bold; color: var(--acc); }
+#scene-bar {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 12px 20px 14px; background: var(--sf2); border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+.scene-tag { background: var(--acc); color: #000; font-size: 9px; font-weight: bold; letter-spacing: 2px; padding: 3px 8px; flex-shrink: 0; margin-top: 3px; }
+#scene-title   { font-size: 16px; font-weight: bold; color: var(--acc); margin-bottom: 6px; }
+#scene-logline { font-size: 13px; color: var(--txd); font-style: italic; line-height: 1.55; margin-bottom: 8px; }
+#scene-desc    { font-size: 13px; color: var(--tx); line-height: 1.5; }
+#scene-desc ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+#scene-desc li { display: flex; align-items: baseline; gap: 8px; }
+#scene-desc li::before { content: '▸'; color: var(--acc); font-size: 10px; flex-shrink: 0; }
+
+/* Monitors */
+#monitors { display: flex; gap: 10px; padding: 10px 20px; flex: 1; min-height: 0; }
+.mon-wrap { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.mon-lbl  { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: var(--txd); padding-left: 2px; }
+.monitor  {
+  position: relative; background: #000; border: 1px solid var(--bd);
+  overflow: hidden; border-radius: 2px; flex: 1; min-height: 180px;
+}
+.monitor img { width: 100%; height: 100%; object-fit: contain; display: block; }
+#player-img { transition: filter .12s, transform .12s; }
+.tint-ov { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .12s; mix-blend-mode: color; }
+#tint-orange { background: #ff6200; }
+#tint-blue   { background: #0050e8; }
+#noise-ov {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .12s;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px; mix-blend-mode: screen;
+}
+#ev-meter {
+  position: absolute; top: 8px; right: 8px; width: 116px;
+  background: rgba(0,0,0,.78); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 2px; padding: 6px 8px; font-size: 10px;
+}
+.evm-lbl { color: var(--txd); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+#ev-track { width: 100%; height: 6px; background: #222; border-radius: 3px; overflow: hidden; position: relative; }
+#ev-fill  { position: absolute; top: 0; height: 100%; width: 0; background: var(--grn); transition: all .12s; }
+#ev-tick  { position: absolute; top: -2px; left: 50%; transform: translateX(-50%); width: 2px; height: 10px; background: rgba(255,255,255,.4); }
+#ev-val   { text-align: center; margin-top: 4px; color: var(--acc); font-size: 11px; font-weight: bold; }
+#histogram {
+  position: absolute; bottom: 8px; right: 8px; width: 120px; height: 60px;
+  background: rgba(0,0,0,.78); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 2px; overflow: hidden;
+}
+#target-ov {
+  position: absolute; bottom: 8px; left: 8px;
+  background: rgba(0,0,0,.78); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 2px; padding: 6px 8px; font-size: 10px; color: var(--txd); line-height: 1.7;
+}
+#target-ov span { color: var(--acc); }
+
+/* Controls */
+#controls { background: var(--sf); border-top: 1px solid var(--bd); padding: 10px 20px 14px; flex-shrink: 0; }
+#ctrl-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 10px; }
+.cg { display: flex; flex-direction: column; gap: 4px; }
+.cg-lbl { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--txd); text-align: center; }
+.cg-val { text-align: center; font-size: 13px; font-weight: bold; color: var(--acc); min-height: 18px; }
+.cg select {
+  width: 100%; background: var(--sf2); border: 1px solid var(--bd); color: var(--tx);
+  font-family: var(--font); font-size: 12px; padding: 4px 6px;
+  border-radius: 2px; cursor: pointer; outline: none;
+}
+.cg select:focus { border-color: var(--acc); }
+.cg select option { background: var(--sf2); }
+.cg input[type="range"] {
+  width: 100%; height: 30px; padding: 0;
+  background: var(--sf2); border: 1px solid var(--bd); color: var(--tx);
+  border-radius: 2px; cursor: pointer; outline: none;
+  appearance: none; -webkit-appearance: none;
+}
+.cg input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 13px; height: 22px;
+  background: var(--acc); border-radius: 2px; cursor: pointer;
+}
+#ctrl-bottom { display: flex; justify-content: center; align-items: center; gap: 20px; }
+#workflow-guide { background: var(--sf2); border-bottom: 1px solid var(--bd); padding: 6px 20px 10px; flex-shrink: 0; }
+#workflow-toggle { background: none; border: none; color: var(--txd); font-family: var(--font); font-size: 11px; cursor: pointer; letter-spacing: 1px; text-transform: uppercase; padding: 0; }
+#workflow-toggle:hover { color: var(--acc); }
+#workflow-table { display: none; width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+#workflow-table.open { display: table; }
+#workflow-table th { color: var(--acc); text-transform: uppercase; letter-spacing: 1px; font-size: 10px; text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--bd); }
+#workflow-table td { padding: 4px 8px; color: var(--txd); vertical-align: top; border-bottom: 1px solid rgba(255,255,255,.04); }
+#workflow-table td:first-child { color: var(--acc2); font-weight: bold; width: 20px; text-align: center; }
+#workflow-table td:nth-child(2) { color: var(--tx); white-space: nowrap; width: 70px; }
+#workflow-table td:nth-child(3) { color: var(--acc); white-space: nowrap; width: 130px; }
+#workflow-table tr:hover td { background: rgba(255,255,255,.03); }
+#ev-readout  { font-size: 12px; color: var(--txd); }
+#ev-readout span { color: var(--acc2); font-weight: bold; }
+#btn-record {
+  background: var(--red); color: #fff; border: none; font-family: var(--font);
+  font-size: 13px; font-weight: bold; letter-spacing: 3px; text-transform: uppercase;
+  padding: 11px 36px; cursor: pointer; border-radius: 2px;
+  display: flex; align-items: center; gap: 10px; transition: background .15s, transform .1s;
+}
+#btn-record:hover { background: #f44336; }
+#btn-record:active { transform: scale(.97); }
+.rec-dot { width: 9px; height: 9px; background: #fff; border-radius: 50%; animation: blink 1.2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ── RESULTS SCREEN ─────────────────────────────────────────────── */
+#screen-results { background: var(--bg); }
+.res-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 24px; background: var(--sf); border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+.res-bar-title { font-size: 13px; letter-spacing: 3px; color: var(--acc); text-transform: uppercase; font-weight: bold; }
+.res-bar-right { display: flex; gap: 10px; }
+.res-summary {
+  text-align: center; padding: 22px 24px 14px; flex-shrink: 0;
+  border-bottom: 1px solid var(--bd);
+}
+.rs-score { font-size: 56px; font-weight: bold; color: var(--acc); line-height: 1; }
+.rs-lbl   { font-size: 10px; letter-spacing: 3px; color: var(--txd); text-transform: uppercase; margin-top: 2px; }
+.rs-grade { font-size: 18px; color: var(--tx); margin-top: 8px; }
+.rs-detail{ font-size: 11px; color: var(--txd); margin-top: 4px; }
+#results-list { flex: 1; overflow-y: auto; padding: 12px 24px; display: flex; flex-direction: column; gap: 8px; }
+.rcard {
+  background: var(--sf); border: 1px solid var(--bd); border-radius: 3px;
+  display: flex; align-items: center; gap: 14px; padding: 10px 14px;
+  transition: border-color .2s;
+}
+.rcard.pass { border-color: var(--grn); }
+.rcard.fail { border-color: var(--red); }
+.rcard-thumb { width: 76px; height: 50px; object-fit: cover; border-radius: 2px; flex-shrink: 0; }
+.rcard-info  { flex: 1; min-width: 0; }
+.rcard-title { font-size: 13px; font-weight: bold; color: var(--tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rcard-meta  { font-size: 10px; color: var(--txd); margin-top: 3px; }
+.rcard-score { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; width: 90px; }
+.rcard-pts   { font-size: 15px; font-weight: bold; color: var(--acc); }
+.rcard-bar   { width: 100%; height: 4px; background: var(--sf2); border-radius: 2px; overflow: hidden; }
+.rcard-fill  { height: 100%; background: var(--grn); border-radius: 2px; transition: width .4s; }
+.rcard.fail .rcard-fill { background: var(--red); }
+.rbadge {
+  font-size: 9px; font-weight: bold; letter-spacing: 1px;
+  padding: 3px 7px; border-radius: 2px; flex-shrink: 0;
+}
+.rbadge.pass { background: rgba(102,187,106,.2); color: var(--grn); }
+.rbadge.fail { background: rgba(239,83,80,.2); color: var(--red); }
+.rcard-retry {
+  background: var(--sf2); border: 1px solid var(--bd); color: var(--acc);
+  font-family: var(--font); font-size: 9px; font-weight: bold;
+  letter-spacing: 2px; text-transform: uppercase; padding: 6px 10px;
+  cursor: pointer; border-radius: 2px; flex-shrink: 0;
+  transition: border-color .15s;
+}
+.rcard-retry:hover { border-color: var(--acc); }
+.res-actions {
+  padding: 14px 24px 18px; display: flex; gap: 10px; justify-content: center;
+  border-top: 1px solid var(--bd); flex-shrink: 0; flex-wrap: wrap;
+}
+.res-actions .btn-out, .res-actions .btn-acc { padding: 10px 22px; }
+
+/* ── FEEDBACK MODAL ─────────────────────────────────────────────── */
+#modal-backdrop {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.82); z-index: 100;
+  align-items: center; justify-content: center;
+}
+#modal-backdrop.open { display: flex; }
+#modal {
+  background: var(--sf); border: 1px solid var(--bd); border-radius: 4px;
+  width: 500px; max-width: 95vw; max-height: 90vh; overflow-y: auto; padding: 28px;
+}
+#modal h2 { font-size: 15px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 4px; }
+.modal-sub  { font-size: 11px; color: var(--txd); margin-bottom: 20px; }
+.fb-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--bd); font-size: 13px;
+}
+.fb-row:last-of-type { border-bottom: none; }
+.fb-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+.fb-text { flex: 1; }
+.fb-text strong { color: var(--tx); display: block; margin-bottom: 1px; }
+.fb-text span   { color: var(--txd); font-size: 11px; }
+.modal-score { margin: 18px 0 14px; text-align: center; }
+.modal-pts   { font-size: 30px; font-weight: bold; color: var(--acc); display: block; }
+.modal-pts-lbl { font-size: 11px; color: var(--txd); }
+.modal-btns  { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.modal-btns .btn-acc, .modal-btns .btn-out { padding: 10px 22px; font-size: 12px; }
+
+/* ── MOBILE ─────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* Allow the page to scroll rather than clipping at viewport height */
+  html, body { height: auto; overflow: auto; }
+
+  /* Screens become normal flow elements instead of overlapping absolute layers */
+  .screen {
+    position: relative;
+    inset: auto;
+    min-height: 100vh;
+    overflow-y: visible;
+  }
+  #screen-game { overflow-y: visible; }
+
+  /* ── Setup ── */
+  #screen-setup { padding: 32px 20px; gap: 20px; }
+  .setup-logo { font-size: 22px; letter-spacing: 4px; }
+  .dropzone, .setup-loaded { width: 100%; max-width: 460px; }
+  .dropzone { padding: 28px 20px; }
+
+  /* ── Topbar ── */
+  #topbar { padding: 8px 12px; gap: 8px; }
+  .tb-logo { font-size: 10px; letter-spacing: 2px; }
+  .tb-stats { gap: 12px; }
+  .stat-v { font-size: 14px; }
+  .btn-sm { padding: 6px 10px; font-size: 9px; }
+
+  /* ── Scene bar ── */
+  #scene-bar { flex-direction: column; padding: 10px 14px 12px; gap: 0; }
+  .scene-tag { margin-bottom: 8px; }
+
+  /* ── Workflow guide ── */
+  #workflow-guide { padding: 6px 14px 8px; }
+  #workflow-table { font-size: 10px; }
+  #workflow-table td, #workflow-table th { padding: 3px 5px; }
+  #workflow-table td:nth-child(3) { white-space: normal; }
+
+  /* ── Monitors — stack vertically, fixed height ── */
+  #monitors {
+    flex-direction: column;
+    flex: none;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  .monitor { height: 200px; flex: none; min-height: unset; }
+
+  /* ── Controls — 2-column grid, ND spans full width ── */
+  #controls { padding: 10px 12px 16px; }
+  #ctrl-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  /* ND filter is the 7th (last) control — span both columns */
+  .cg:last-child { grid-column: 1 / -1; }
+
+  /* Larger touch targets for selects and slider */
+  .cg select { font-size: 13px; padding: 8px 6px; height: 40px; }
+  .cg input[type="range"] { height: 40px; }
+  .cg-val { font-size: 14px; }
+
+  /* Record button — full width on mobile */
+  #ctrl-bottom { flex-direction: column; gap: 10px; }
+  #btn-record { width: 100%; justify-content: center; padding: 14px; font-size: 14px; }
+  #ev-readout { font-size: 13px; }
+
+  /* ── Results ── */
+  #results-list { padding: 10px 14px; }
+  .rcard { flex-wrap: wrap; gap: 10px; }
+  .rcard-score { width: auto; }
+  .res-summary { padding: 16px 14px 12px; }
+  .rs-score { font-size: 44px; }
+
+  /* ── Scene description — block layout so wrapped text fills full width ── */
+  #scene-desc li { display: block; padding-left: 14px; position: relative; }
+  #scene-desc li::before { position: absolute; left: 0; top: 3px; }
+
+  /* ── Setup — video and load indicator scale to full width ── */
+  #tutorial-video { width: 100%; max-width: 460px; }
+  #load-indicator { justify-content: center; }
+
+  /* ── Modal ── */
+  #modal { padding: 20px 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ─────────────────────────────────────────────────────── SETUP -->
+<div id="screen-setup" class="screen active">
+  <div class="setup-logo">&#9654; MAGIC HOUR</div>
+  <div class="setup-sub">Camera Simulator for Film Students</div>
+
+  <!-- ── Tutorial video — replace the placeholder div with a YouTube iframe ── -->
+  <div id="tutorial-video">
+    <!-- Example: <iframe width="100%" height="100%" src="https://www.youtube.com/embed/YOUR_VIDEO_ID" frameborder="0" allowfullscreen></iframe> -->
+    <div class="tutorial-placeholder">
+      <span class="tutorial-play">&#9654;</span>
+      <span class="tutorial-lbl">How to Play — Tutorial Video</span>
+      <span class="tutorial-hint">Replace this block with your YouTube embed</span>
+    </div>
+  </div>
+
+  <div id="load-indicator">
+    <span id="load-spinner">⏳</span>
+    <span id="load-status" style="font-size:11px; color:var(--txd); letter-spacing:1px;">Loading scenes…</span>
+  </div>
+
+  <div class="setup-loaded" id="setup-loaded">
+    <div class="setup-loaded-hdr">
+      <span id="setup-count">0 images loaded</span>
+      <strong id="setup-folder">—</strong>
+    </div>
+    <div class="setup-thumbs" id="setup-thumbs"></div>
+    <div class="setup-actions">
+      <button class="btn-acc" id="btn-start-game">&#9654; Start Game</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────── EDITOR -->
+<div id="screen-editor" class="screen">
+  <div class="ed-bar">
+    <div class="ed-bar-title">&#9998; Scene Editor</div>
+    <div class="ed-bar-right">
+      <span class="ed-bar-hint">Changes saved automatically</span>
+      <button class="btn-sm" id="btn-ed-back">&#8592; Back</button>
+      <button class="btn-sm acc" id="btn-ed-play">&#9654; Start Game</button>
+    </div>
+  </div>
+  <div id="editor-list"></div>
+</div>
+
+<!-- ──────────────────────────────────────────────────────── GAME -->
+<div id="screen-game" class="screen">
+
+  <div id="topbar">
+    <div class="tb-logo">&#9654; MAGIC HOUR</div>
+    <div class="tb-stats">
+      <div class="stat"><div class="stat-l">Scene</div><div class="stat-v" id="stat-scene">1/1</div></div>
+      <div class="stat"><div class="stat-l">Score</div><div class="stat-v" id="stat-score">0</div></div>
+      <div class="stat"><div class="stat-l">Current EV</div><div class="stat-v" id="stat-ev">—</div></div>
+    </div>
+    <button class="btn-sm" id="btn-to-results">&#128202; Results</button>
+  </div>
+
+  <div id="scene-bar">
+    <div class="scene-tag">SCENE</div>
+    <div>
+      <div id="scene-title">—</div>
+      <div id="scene-logline">—</div>
+      <div id="scene-desc">—</div>
+    </div>
+  </div>
+
+  <div id="workflow-guide">
+    <button id="workflow-toggle" onclick="document.getElementById('workflow-table').classList.toggle('open');this.textContent=this.textContent.includes('▸')?'▾ Hide Workflow Guide':'▸ Workflow Guide'">▸ Workflow Guide</button>
+    <table id="workflow-table">
+      <thead><tr><th>#</th><th>Setting</th><th>Variable</th><th>Reasoning</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>FPS</td><td>Time</td><td>First decision: cinematic (24fps) or high-motion (60fps+)?</td></tr>
+        <tr><td>2</td><td>Shutter</td><td>Motion Blur</td><td>Once FPS is set, shutter locks immediately via the 180° rule (1/50 for 24fps).</td></tr>
+        <tr><td>3</td><td>Lens</td><td>Perspective</td><td>Determines the story being told (wide vs. telephoto) before worrying about light.</td></tr>
+        <tr><td>4</td><td>Aperture</td><td>Depth</td><td>First creative light control — decide Depth of Field before reaching for ISO.</td></tr>
+        <tr><td>5</td><td>White Bal</td><td>Color</td><td>Correct temperature ensures accurate colors before the final exposure push.</td></tr>
+        <tr><td>6</td><td>ISO</td><td>Sensitivity</td><td>Keep at Native ISO as long as possible to avoid noise.</td></tr>
+        <tr><td>7</td><td>ND Filter</td><td>Light Brake</td><td>Everything else is set for the look but the shot is still blown out? ND is the final fix.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="monitors">
+
+    <div class="mon-wrap">
+      <div class="mon-lbl">&#9632; Director's Target</div>
+      <div class="monitor">
+        <img id="target-img" src="" alt="Target">
+      </div>
+    </div>
+
+    <div class="mon-wrap">
+      <div class="mon-lbl">&#9711; Player Camera</div>
+      <div class="monitor" id="player-monitor">
+        <img id="player-img" src="" alt="Player View">
+        <div class="tint-ov" id="tint-orange"></div>
+        <div class="tint-ov" id="tint-blue"></div>
+        <div id="noise-ov"></div>
+        <div id="ev-meter">
+          <div class="evm-lbl">EV Meter</div>
+          <div id="ev-track"><div id="ev-fill"></div><div id="ev-tick"></div></div>
+          <div id="ev-val">&#177;0.0</div>
+        </div>
+        <div id="histogram"><canvas id="hist-canvas" width="120" height="60"></canvas></div>
+      </div>
+    </div>
+
+  </div><!-- /monitors -->
+
+  <div id="controls">
+    <div id="ctrl-grid">
+
+      <div class="cg">
+        <div class="cg-lbl">FPS</div><div class="cg-val" id="v-fps">24fps</div>
+        <select id="c-fps">
+          <option value="24" selected>24fps — Cinematic</option>
+          <option value="60">60fps — Slow Motion</option>
+          <option value="120">120fps — Extreme Slow-Mo</option>
+        </select>
+      </div>
+
+      <div class="cg">
+        <div class="cg-lbl">Shutter</div><div class="cg-val" id="v-shut">1/50</div>
+        <select id="c-shut">
+          <option value="5">1/30</option><option value="6" selected>1/50</option>
+          <option value="7">1/120</option><option value="8">1/250</option>
+          <option value="9">1/500</option><option value="10">1/1000</option>
+          <option value="11">1/2000</option><option value="12">1/4000</option>
+        </select>
+      </div>
+
+      <div class="cg">
+        <div class="cg-lbl">Lens</div><div class="cg-val" id="v-lens">50mm</div>
+        <select id="c-lens">
+          <option value="14">14mm — Ultra Wide</option>
+          <option value="24">24mm — Wide</option>
+          <option value="35">35mm — Wide/Standard</option>
+          <option value="50" selected>50mm — Standard</option>
+          <option value="85">85mm — Short Telephoto</option>
+          <option value="200">200mm — Long Telephoto</option>
+        </select>
+      </div>
+
+      <div class="cg">
+        <div class="cg-lbl">Aperture</div><div class="cg-val" id="v-ap">f/5.6</div>
+        <select id="c-ap">
+          <option value="1">f/1.4 — Extremely Shallow DoF</option>
+          <option value="2">f/2 — Very Shallow DoF</option>
+          <option value="3">f/2.8 — Shallow DoF</option>
+          <option value="4">f/4 — Moderately Shallow DoF</option>
+          <option value="5" selected>f/5.6 — Moderate DoF</option>
+          <option value="6">f/8 — Moderately Deep DoF</option>
+          <option value="7">f/11 — Deep DoF</option>
+          <option value="8">f/16 — Very Deep DoF</option>
+          <option value="9">f/22 — Maximum Depth of Field</option>
+        </select>
+      </div>
+
+      <div class="cg">
+        <div class="cg-lbl">White Bal</div><div class="cg-val" id="v-wb">5600K</div>
+        <select id="c-wb">
+          <option value="3200">3200K (Indoor / Tungsten)</option>
+          <option value="4500">4500K (Fluorescent / Overcast)</option>
+          <option value="5600" selected>5600K (Daylight / Sunlight)</option>
+        </select>
+      </div>
+
+      <div class="cg">
+        <div class="cg-lbl">ISO</div><div class="cg-val" id="v-iso">ISO 400</div>
+        <select id="c-iso">
+          <option value="0">ISO 100 — Base / Cleanest</option>
+          <option value="-1">ISO 200 — Very Clean</option>
+          <option value="-2" selected>ISO 400 — Clean</option>
+          <option value="-3">ISO 800 — Slight Noise</option>
+          <option value="-4">ISO 1600 — Noticeable Noise</option>
+          <option value="-5">ISO 3200 — Grainy</option>
+          <option value="-6">ISO 6400 — Very Grainy</option>
+          <option value="-7">ISO 12800 — Maximum Noise</option>
+        </select>
+      </div>
+
+      <div class="cg">
+        <div class="cg-lbl">ND Filter</div><div class="cg-val" id="v-nd">ND 0</div>
+        <input type="range" id="c-nd" min="0" max="6" step="1" value="0">
+      </div>
+
+    </div><!-- /ctrl-grid -->
+
+    <div id="ctrl-bottom">
+      <div id="ev-readout">EV Diff: <span id="ev-diff-text">—</span></div>
+      <button id="btn-record"><span class="rec-dot"></span> Record Shot</button>
+    </div>
+  </div><!-- /controls -->
+
+</div><!-- /screen-game -->
+
+<!-- ─────────────────────────────────────────────────── RESULTS -->
+<div id="screen-results" class="screen">
+  <div class="res-bar">
+    <div class="res-bar-title">&#128202; Session Results</div>
+    <div class="res-bar-right">
+    </div>
+  </div>
+  <div class="res-summary">
+    <div class="rs-score" id="rs-score">0</div>
+    <div class="rs-lbl">Total Score</div>
+    <div class="rs-grade" id="rs-grade">—</div>
+    <div class="rs-detail" id="rs-detail">—</div>
+  </div>
+  <div class="res-actions">
+    <button class="btn-out" id="btn-retry-failed">&#8635; Retry Failed</button>
+    <button class="btn-out" id="btn-play-all">&#8635; Play All Again</button>
+    <button class="btn-acc" id="btn-new-session">&#9733; New Session</button>
+  </div>
+  <div id="results-list"></div>
+</div>
+
+<!-- ──────────────────────────────────────────────── MODAL -->
+<div id="modal-backdrop">
+  <div id="modal">
+    <h2 id="modal-title">Shot Evaluation</h2>
+    <div class="modal-sub" id="modal-sub"></div>
+    <div id="modal-rows"></div>
+    <div class="modal-score">
+      <span class="modal-pts" id="modal-pts">+0</span>
+      <span class="modal-pts-lbl">points this shot</span>
+    </div>
+    <div class="modal-btns" id="modal-btns"></div>
+  </div>
+</div>
+
+<script>
+// ── CONSTANTS ────────────────────────────────────────────────────
+
+const SHUTTERS = {
+  5:'1/30', 6:'1/50', 7:'1/120', 8:'1/250',
+  9:'1/500', 10:'1/1000', 11:'1/2000', 12:'1/4000'
+};
+const APERTURES = {
+  1:'f/1.4', 2:'f/2', 3:'f/2.8', 4:'f/4',
+  5:'f/5.6', 6:'f/8', 7:'f/11', 8:'f/16', 9:'f/22'
+};
+const ISO_LABELS = {
+  0:'ISO 100', '-1':'ISO 200', '-2':'ISO 400', '-3':'ISO 800',
+  '-4':'ISO 1600', '-5':'ISO 3200', '-6':'ISO 6400', '-7':'ISO 12800'
+};
+const FPS_TO_TV = { 24: 6, 60: 7, 120: 8 };
+const LS_KEY = 'magichour_configs_v3';
+const IMG_EXTS = /\.(jpe?g|png|gif|webp|avif|bmp)$/i;
+
+// ── FIXED SCENE ARCHETYPES ────────────────────────────────────────
+// 15 precisely-defined archetypes, each teaching specific camera concepts.
+// Image prompts in IMAGE_PROMPTS.md are written to match these assignments.
+const FIXED_ARCHETYPES = [
+  { ev:15, wb:5600, lens:85,  fps:24,  dof:'shallow' }, // 0: bright telephoto portrait — needs ND6
+  { ev:12, wb:3200, lens:50,  fps:24,  dof:'shallow' }, // 1: warm interior portrait
+  { ev:10, wb:3200, lens:24,  fps:24,  dof:'deep'    }, // 2: wide interior deep focus
+  { ev: 8, wb:4500, lens:24,  fps:24,  dof:'deep'    }, // 3: overcast street wide
+  { ev: 6, wb:3200, lens:50,  fps:24,  dof:'shallow' }, // 4: night intimate
+  { ev:16, wb:5600, lens:85,  fps:60,  dof:'shallow' }, // 5: slow-mo bright portrait — needs ND6
+  { ev:13, wb:5600, lens:24,  fps:60,  dof:'deep'    }, // 6: slow-mo wide action
+  { ev:11, wb:4500, lens:35,  fps:60,  dof:'shallow' }, // 7: slow-mo overcast medium
+  { ev: 9, wb:3200, lens:85,  fps:60,  dof:'shallow' }, // 8: slow-mo dim interior
+  { ev: 7, wb:4500, lens:24,  fps:60,  dof:'deep'    }, // 9: slow-mo dusk establishing
+  { ev:16, wb:5600, lens:50,  fps:120, dof:'shallow' }, // 10: extreme slow-mo bright — needs ND
+  { ev:14, wb:5600, lens:14,  fps:120, dof:'deep'    }, // 11: extreme slow-mo ultra-wide bright
+  { ev:13, wb:4500, lens:85,  fps:120, dof:'shallow' }, // 12: extreme slow-mo overcast portrait
+  { ev:10, wb:3200, lens:35,  fps:120, dof:'deep'    }, // 13: extreme slow-mo interior
+  { ev: 8, wb:4500, lens:85,  fps:120, dof:'shallow' }, // 14: extreme slow-mo dusk
+];
+
+// Maps each image slot (index 0–49) to a FIXED_ARCHETYPES index.
+// Pattern: all 15 archetypes cycle 3× (images 1–45), then archetypes 0–4 repeat (images 46–50).
+// Images with the same archetype get different phrase variants via their slot index.
+const IMAGE_ARCHETYPE_MAP = [
+   0, 5,10, 1, 6,11, 2, 7,12, 3, 8,13, 4, 9,14,  // slots 0–14  (images 01–15)
+   0, 5,10, 1, 6,11, 2, 7,12, 3, 8,13, 4, 9,14,  // slots 15–29 (images 16–30)
+   0, 5,10, 1, 6,11, 2, 7,12, 3, 8,13, 4, 9,14,  // slots 30–44 (images 31–45)
+   0, 1, 2, 3, 4,                                  // slots 45–49 (images 46–50)
+];
+
+// One cinematic log-line per image slot (index 0–49). Sets the scene without revealing settings.
+const LOG_LINES = [
+  // 01 – arch 0: bright outdoor portrait, 85mm, shallow
+  "A woman stands in vivid, sun-drenched clarity, the world behind her dissolving into soft gold as brilliant midday light floods the frame.",
+  // 02 – arch 5: slow-mo bright portrait, 85mm, shallow
+  "A dancer erupts into motion under full blazing sun, form and expression caught with perfect clarity while the summer world behind melts into light.",
+  // 03 – arch 10: extreme slow-mo bright, 50mm, shallow
+  "Sunlight catches a thrown splash of water at the exact moment it explodes outward — droplets suspended in crystal stillness against a blurred, radiant background.",
+  // 04 – arch 1: warm interior portrait, 50mm, shallow
+  "Bathed in the amber warmth of a single lamp, a reader sits quietly absorbed, the soft glow turning everything beyond into a gentle, out-of-focus haze.",
+  // 05 – arch 6: slow-mo wide action, 24mm, deep
+  "Players and sand and sky stretch across the frame in hard, direct sunlight — every grain and leaping figure equally sharp in the open coastal light.",
+  // 06 – arch 11: extreme slow-mo ultra-wide, 14mm, deep
+  "A wave crashes on the beach in its full, immense breadth — the churning foam, the breaking wall of water, and the distant horizon all equally present and sharp.",
+  // 07 – arch 2: wide interior deep, 24mm, deep
+  "A warm, lived-in living room stretches from the foreground sofa to the far bookshelf, every surface and object bathed equally in amber lamplight.",
+  // 08 – arch 7: slow-mo overcast, 35mm, shallow
+  "A performer holds a moment of stillness in the soft, grey light of an overcast afternoon, the world behind them gently blurring into nothing.",
+  // 09 – arch 12: extreme slow-mo overcast portrait, 85mm, shallow
+  "An athlete freezes at the peak of effort under a flat grey sky — every muscle and expression caught in extraordinary detail while the background softens away.",
+  // 10 – arch 3: overcast street, 24mm, deep
+  "A city street sits under a flat grey sky, every building, car, and passer-by rendered in equal, shadowless clarity beneath the cloud cover.",
+  // 11 – arch 8: slow-mo dim interior, 85mm, shallow
+  "A bartender moves in the warm amber half-light of a quiet bar, sharp in the foreground while bottles and shelves dissolve into a soft wash of glow.",
+  // 12 – arch 13: extreme slow-mo interior, 35mm, deep
+  "Heavy machinery churns in a warm amber-lit warehouse, the motion of gears and pistons caught in extraordinary detail against a background equally sharp and present.",
+  // 13 – arch 4: night intimate, 50mm, shallow
+  "In the near-dark, a single warm light finds a face — everything else falling away into black as the room holds its breath.",
+  // 14 – arch 9: slow-mo dusk wide, 24mm, deep
+  "A city street holds the precise moment when the last of the day gives way to artificial light — every shopfront and pavement crack equally visible in the dim transition.",
+  // 15 – arch 14: extreme slow-mo dusk, 85mm, shallow
+  "A sparkler traces its path against a blue hour sky, the burning point sharp and vivid while the dusk city behind dissolves into soft circles of light.",
+  // 16 – arch 0: bright outdoor portrait, 85mm, shallow
+  "A man pauses in the full force of midday sun, every detail crisp against a city that has melted into an indistinct shimmer behind him.",
+  // 17 – arch 5: slow-mo bright portrait, 85mm, shallow
+  "A runner breaks the tape in blazing afternoon sun, every muscle and expression frozen in a moment that feels stretched beyond ordinary time.",
+  // 18 – arch 10: extreme slow-mo bright, 50mm, shallow
+  "A burst of confetti erupts into brilliant afternoon air, each piece frozen in extraordinary detail against a blurred, sun-bright background.",
+  // 19 – arch 1: warm interior portrait, 50mm, shallow
+  "A writer bends over their journal in a pool of warm lamplight, the rest of the room dissolving behind them into comforting amber blur.",
+  // 20 – arch 6: slow-mo wide action, 24mm, deep
+  "Children run through a fountain on a blazing summer afternoon, every splash and stride and detail sharp across the wide, sun-filled frame.",
+  // 21 – arch 11: extreme slow-mo ultra-wide, 14mm, deep
+  "A crowd pulses under the open sky at a festival, the foreground faces, the stage, and the distant sky all equally alive and sharp in brilliant midday light.",
+  // 22 – arch 2: wide interior deep, 24mm, deep
+  "A craftsperson's workshop lays itself bare — tools, benches, and walls equally sharp under warm tungsten light, the whole space revealed at once.",
+  // 23 – arch 7: slow-mo overcast, 35mm, shallow
+  "A cyclist leans into motion under a pale grey sky, their form sharp against a background of soft road and hedgerow that blurs in the diffused light.",
+  // 24 – arch 12: extreme slow-mo overcast portrait, 85mm, shallow
+  "A tennis player hangs at the top of their serve under a heavy grey sky, every strand of hair and fibre of clothing frozen in perfect, unexpected detail.",
+  // 25 – arch 3: overcast street, 24mm, deep
+  "An open-air market spreads under a heavy grey sky, stalls and faces and colour all equally present in the soft, directionless light of a cloudy afternoon.",
+  // 26 – arch 8: slow-mo dim interior, 85mm, shallow
+  "A pianist plays in the intimate darkness of a single lamp, hands and keys in sharp focus while the room dissolves into warm, quiet shadow.",
+  // 27 – arch 13: extreme slow-mo interior, 35mm, deep
+  "A glass explodes into pieces in a warmly lit studio, every shard and fragment held in sharp, equal focus against the amber background.",
+  // 28 – arch 4: night intimate, 50mm, shallow
+  "Two faces float in the warm amber of candlelight, the rest of the restaurant dissolving into shadow and silence around them.",
+  // 29 – arch 9: slow-mo dusk wide, 24mm, deep
+  "A riverside promenade rests at the meeting point of day and night, blue sky and lit buildings and reflected water held in equal, fading clarity.",
+  // 30 – arch 14: extreme slow-mo dusk, 85mm, shallow
+  "A guitarist plays at the edge of night, sharp and present against a blue hour sky that fades to soft bokeh of city lights coming alive in the dusk.",
+  // 31 – arch 0: bright outdoor portrait, 85mm, shallow
+  "Two hikers rest on a sunlit trail, their faces sharp against a breathtaking sweep of mountain landscape that has softened into pure, golden light.",
+  // 32 – arch 5: slow-mo bright portrait, 85mm, shallow
+  "A figure launches into the air in golden afternoon light, caught at the peak of the leap — crisp against a world of bright, blurred green below.",
+  // 33 – arch 10: extreme slow-mo bright, 50mm, shallow
+  "A dog shakes itself dry in full sunlight, every droplet suspended in the air with impossible clarity while the bright world behind dissolves away.",
+  // 34 – arch 1: warm interior portrait, 50mm, shallow
+  "An artist works under warm studio light, fingers sharp and purposeful, while the studio around them softens into glowing, indistinct warmth.",
+  // 35 – arch 6: slow-mo wide action, 24mm, deep
+  "Riders carve through a sun-drenched skate park, every ramp and mid-trick pose and shadow equally sharp in the hard, direct light of midday.",
+  // 36 – arch 11: extreme slow-mo ultra-wide, 14mm, deep
+  "A city intersection hums with life in the hard light of noon, every pavement, person, and skyscraper held in sharp, equal focus under the wide stretch of sky.",
+  // 37 – arch 2: wide interior deep, 24mm, deep
+  "A warmly lit restaurant reveals itself in full — every table, painting, and distant bar stool equally sharp under the glow of tungsten overheads.",
+  // 38 – arch 7: slow-mo overcast, 35mm, shallow
+  "A figure runs through rain-washed streets under flat grey cloud, sharp in the foreground while the wet city dissolves softly behind them.",
+  // 39 – arch 12: extreme slow-mo overcast portrait, 85mm, shallow
+  "A dancer is caught at the apex of movement under flat overcast light — the full energy of the body held still while the world behind blurs softly away.",
+  // 40 – arch 3: overcast street, 24mm, deep
+  "A public square sits quiet under thick cloud cover, every bench and cobblestone and distant façade holding its shape in the flat, grey light.",
+  // 41 – arch 8: slow-mo dim interior, 85mm, shallow
+  "A chef's hands move over a plate in the warm dim light of a restaurant kitchen, sharp and purposeful against a background of softened amber glow.",
+  // 42 – arch 13: extreme slow-mo interior, 35mm, deep
+  "Steam rises and curls through a warm workshop, its fluid motion caught in remarkable detail in a space where every surface holds equal focus.",
+  // 43 – arch 4: night intimate, 50mm, shallow
+  "A reader bends into the circle of their desk lamp, face and page caught in a small island of amber light, the rest of the room gone dark.",
+  // 44 – arch 9: slow-mo dusk wide, 24mm, deep
+  "A street food market catches the balance between blue sky and warm lamplight, every stall and face and shadow equally present in the soft transition of dusk.",
+  // 45 – arch 14: extreme slow-mo dusk, 85mm, shallow
+  "A performer spins at dusk, every detail of their costume frozen in the last of the natural light while the darkening sky melts into a cool, soft blur.",
+  // 46 – arch 0: bright outdoor portrait, 85mm, shallow
+  "A chef stands at the threshold of their domain — face sharp and vivid, the bright street behind reduced to a warm, creamy blur in the full force of afternoon sun.",
+  // 47 – arch 1: warm interior portrait, 50mm, shallow
+  "Two friends talk in a kitchen filled with warm light, their expressions caught in the middle of something real, the world beyond them fading softly away.",
+  // 48 – arch 2: wide interior deep, 24mm, deep
+  "A corridor recedes into the distance under warm overhead lights, the carpet pattern at your feet as sharp as the door at the far end.",
+  // 49 – arch 3: overcast street, 24mm, deep
+  "A residential street stretches from the foreground path to the distant end under a uniform grey sky, every house and tree equally muted and present.",
+  // 50 – arch 4: night intimate, 50mm, shallow
+  "A lone figure sits at a bar counter, lit from above by a single warm fixture, the bottles and glasses behind fading into a soft, dim amber darkness.",
+];
+
+// ── APP STATE ────────────────────────────────────────────────────
+
+let images = [];       // [{name, url}]
+let configs = {};      // {name: SceneConfig} — persisted in localStorage
+
+const game = {
+  queue: [],           // ordered array of image indices
+  qIdx:  0,
+  results: {},         // {name: {bestScore, attempts, passed, lastFeedback}}
+  returnToResults: false,
+  currentScenario: null
+};
+
+// ── LOCALSTORAGE ─────────────────────────────────────────────────
+
+function loadConfigs() {
+  try { configs = JSON.parse(localStorage.getItem(LS_KEY)) || {}; }
+  catch { configs = {}; }
+}
+function saveConfigs() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(configs)); } catch {}
+}
+function getConfig(name, idx = 0) {
+  if (!configs[name]) configs[name] = defaultConfig(idx, name);
+  const cfg = configs[name];
+  if (!cfg.reqDof) {
+    cfg.reqDof = 'shallow';
+    cfg.desc = generateDesc(cfg, idx);
+    saveConfigs();
+  }
+  return cfg;
+}
+function generateDesc(cfg, phraseIdx = 0) {
+  let _pi = phraseIdx;
+  const rnd = arr => { const v = arr[_pi % arr.length]; _pi++; return v; };
+  const parts = [];
+
+  // 1. FPS + Shutter
+  if (cfg.reqFps === 24) parts.push(rnd([
+    'FPS/Shutter: The director wants a cinematic, film-like motion feel. Choose your frame rate accordingly, then apply the 180° rule to lock in your shutter.',
+    'FPS/Shutter: This is meant to feel like a movie. Pick the frame rate that has defined cinema for a century, then derive your shutter from the 180° rule.',
+    'FPS/Shutter: Classic cinematic cadence. Lock in the frame rate, then calculate your shutter using the 180° rule.',
+    'FPS/Shutter: Traditional film motion is the goal. Set your frame rate for the standard cinematic look, then follow the 180° rule for shutter.'
+  ]));
+  else if (cfg.reqFps === 60) parts.push(rnd([
+    'FPS/Shutter: This footage will be played back in slow motion. Select the right frame rate for smooth slow-mo, then apply the 180° rule to lock your shutter.',
+    'FPS/Shutter: The edit will stretch this into slow motion. Shoot enough frames to make it fluid — choose accordingly, then derive your shutter.',
+    'FPS/Shutter: Buttery slow motion is the goal. Find the frame rate for half-speed playback, then apply the 180° rule.',
+    'FPS/Shutter: Slow-mo playback is required. Choose the frame rate that makes it work, then lock in your shutter with the 180° rule.'
+  ]));
+  else parts.push(rnd([
+    'FPS/Shutter: Extreme slow-motion — every detail must hang in the air. Push the frame rate as high as it goes, then apply the 180° rule for shutter.',
+    'FPS/Shutter: Ultra slow-mo. You are shooting at a very high frame rate — figure it out, then derive your shutter accordingly.',
+    'FPS/Shutter: The director wants time to almost stop. Maximum frame rate — then calculate your shutter using the 180° rule.',
+    'FPS/Shutter: High-speed capture for dramatic slow-motion. Pick the highest frame rate available and apply the 180° rule.'
+  ]));
+
+  // 2. Lens
+  if (cfg.targetLens <= 20) parts.push(rnd([
+    'Lens: Go very wide — the director wants the full environment visible and the space to feel vast.',
+    'Lens: Ultra-wide lens required. Get everything in frame — architecture, environment, all the context.',
+    'Lens: The whole scene needs to breathe. Choose your widest option to capture the full space.',
+    'Lens: Maximum width. The environment itself is part of the story here.'
+  ]));
+  else if (cfg.targetLens <= 35) parts.push(rnd([
+    'Lens: Use a wide lens to capture a broad, environmental perspective with context around the subject.',
+    'Lens: Wide but not extreme — environmental storytelling without significant distortion.',
+    'Lens: A wide lens that keeps the world around the subject present and readable.',
+    'Lens: Favour a wide perspective. The subject exists within a larger world — show it.'
+  ]));
+  else if (cfg.targetLens <= 55) parts.push(rnd([
+    'Lens: A standard focal length is called for — natural perspective, no compression, true to the human eye.',
+    'Lens: Match the human eye. No telephoto compression, no wide distortion — a clean, honest view.',
+    'Lens: Standard lens territory. What you see through the viewfinder is what the audience gets.',
+    'Lens: The director wants a neutral, unaffected perspective. Standard focal length is the right call.'
+  ]));
+  else if (cfg.targetLens <= 100) parts.push(rnd([
+    'Lens: Choose a short telephoto to gently compress the scene and draw attention to the subject.',
+    'Lens: A flattering portrait length — compress the background slightly and bring the subject forward.',
+    'Lens: Short telephoto: pull the subject forward and softly separate it from the environment behind.',
+    'Lens: A modest telephoto reach. Enough compression to flatter without making the image feel unnatural.'
+  ]));
+  else parts.push(rnd([
+    'Lens: A long telephoto is required. Flatten the background, isolate the subject, and compress the depth of the scene.',
+    'Lens: Reach out with a long lens — serious background compression, subject pulled dramatically forward.',
+    'Lens: Maximum focal length. The world behind the subject collapses into a flat, abstract plane.',
+    'Lens: The director wants the subject isolated against a compressed, out-of-focus distance. Go long.'
+  ]));
+
+  // 3. DoF / Aperture
+  if (cfg.reqDof === 'shallow') parts.push(rnd([
+    'Aperture: The director wants the background thrown completely out of focus. Achieve a shallow depth of field.',
+    'Aperture: Separate the subject from the world behind it — open up for a soft, out-of-focus background.',
+    'Aperture: Shallow depth of field is essential. The background should melt away from the subject.',
+    'Aperture: The subject must pop. Open up your aperture to render the background as smooth, creamy bokeh.'
+  ]));
+  else if (cfg.reqDof === 'deep') parts.push(rnd([
+    'Aperture: The foreground and background both need to stay in focus. Stop down to f/8 or smaller for good depth throughout.',
+    'Aperture: Everything in the frame should be acceptably sharp. Stop down your aperture to hold depth from near to far.',
+    'Aperture: Good depth of field is essential — stop down so the whole scene reads clearly.',
+    'Aperture: Work your aperture down to f/8 or beyond to keep the entire image sharp and readable.'
+  ]));
+  else parts.push(rnd([
+    'Aperture: The director wants the background thrown completely out of focus. Achieve a shallow depth of field.',
+    'Aperture: Separate the subject from the world behind it — open up for a soft, out-of-focus background.',
+    'Aperture: Shallow depth of field is essential. The background should melt away from the subject.',
+    'Aperture: The subject must pop. Open up your aperture to render the background as smooth, creamy bokeh.'
+  ]));
+
+  // 4. White Balance
+  const wbOptions = {
+    3200: [
+      'White Balance: The scene is lit entirely by warm tungsten practicals. Set your white balance to match the indoor lamp quality.',
+      'White Balance: Incandescent bulbs are the only source, casting a warm amber glow. Dial in your white balance accordingly.',
+      'White Balance: Warm practical lighting — think old tungsten fixtures. Your camera needs to match that colour temperature.',
+      'White Balance: Interior lit by practical lamps with a distinctly warm quality. White balance to the source.'
+    ],
+    4500: [
+      'White Balance: Soft overcast light fills the scene with a cool, diffused tone. Neutralise it with the right white balance.',
+      'White Balance: Heavy cloud cover — flat, directionless, and slightly cool. Set your white balance for these conditions.',
+      'White Balance: Mixed or diffused natural light with a neutral, slightly grey quality. Find the right balanced setting.',
+      'White Balance: Overcast exterior. The light is even but cool — dial in your white balance accordingly.'
+    ],
+    5600: [
+      'White Balance: Natural outdoor daylight is the sole source. Set your white balance for open-sky conditions.',
+      'White Balance: The sun is out and the sky is clear. Match your white balance to the quality of direct daylight.',
+      'White Balance: Bright daylight fills the frame. Dial in for an exterior shoot under natural light.',
+      'White Balance: Exterior, midday light. Clean, neutral daylight — set your white balance to match it.'
+    ]
+  };
+  parts.push(rnd(wbOptions[cfg.targetWB] || ['White Balance: Match your white balance to the dominant light source.']));
+
+  // 5. Exposure (ISO / ND)
+  if (cfg.targetEV >= 15) parts.push(rnd([
+    'Exposure: Full sun — blazing exterior light. Keep ISO at native and use the ND filter if the shot is still blown out.',
+    'Exposure: Harsh direct sunlight. Start at native ISO and reach for the ND only after everything else is locked.',
+    'Exposure: High-key daylight. The sun is working against you — ISO stays low, and the ND is your last resort.',
+    'Exposure: Blazing exterior. Native ISO first; if highlights are still clipping, the ND filter is your final control.'
+  ]));
+  else if (cfg.targetEV >= 12) parts.push(rnd([
+    'Exposure: Well-lit scene. Native ISO should be enough — only push it if you have exhausted your other options.',
+    'Exposure: Good light available. Keep ISO at its cleanest setting and adjust exposure with aperture first.',
+    'Exposure: Standard light levels. There is no reason to push ISO here — keep it clean.',
+    'Exposure: Solid available light. Native ISO is your friend — do not reach for it until everything else is set.'
+  ]));
+  else if (cfg.targetEV >= 9) parts.push(rnd([
+    'Exposure: Dimly lit interior. You may need to nudge ISO upward — but exhaust aperture options first.',
+    'Exposure: Low light environment. Push ISO carefully and only after aperture and ND are optimised.',
+    'Exposure: Limited light. Find the balance — raise ISO only as a last resort to avoid crushing the shadows.',
+    'Exposure: Underlit space. ISO may have to work, but keep it as low as the exposure allows.'
+  ]));
+  else parts.push(rnd([
+    'Exposure: Dark or near-night conditions. ISO will have to work hard — manage your noise floor carefully.',
+    'Exposure: Night exterior. Push ISO as needed, but make every other decision first.',
+    'Exposure: Very low ambient light. You will need to compromise — ISO is the last dial to reach for.',
+    'Exposure: Barely enough light to expose. Every stop counts — push ISO only after all other controls are set.'
+  ]));
+
+  return parts.join(' ');
+}
+
+function defaultConfig(imgIdx, name) {
+  const title = name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+  const a = FIXED_ARCHETYPES[IMAGE_ARCHETYPE_MAP[imgIdx] || 0];
+  const cfg = {
+    title,
+    desc: '',
+    targetEV:     a.ev,
+    targetWB:     a.wb,
+    targetLens:   a.lens,
+    reqFps:       a.fps,
+    reqDof:       a.dof,
+    minTvForBlur: FPS_TO_TV[a.fps]
+  };
+  cfg.desc = generateDesc(cfg, imgIdx);
+  return cfg;
+}
+
+// ── SCREEN NAV ───────────────────────────────────────────────────
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ── SETUP SCREEN ─────────────────────────────────────────────────
+
+async function loadImageManifest() {
+  try {
+    document.getElementById('load-status').textContent = 'Loading manifest...';
+    const response = await fetch('images.json');
+    if (!response.ok) throw new Error(`HTTP ${response.status} loading images.json`);
+    const manifestData = await response.json();
+
+    // Handle both array format and object format with 'images' key
+    const imageList = Array.isArray(manifestData) ? manifestData : (manifestData.images || []);
+
+    if (!Array.isArray(imageList) || imageList.length === 0) {
+      throw new Error('images.json must contain an array of image paths');
+    }
+
+    const files = imageList.map((img, idx) => {
+      const path = typeof img === 'string' ? img : (img.path || img.name || img);
+      const name = typeof img === 'string' ? img.split('/').pop() : (img.name || path.split('/').pop());
+      return { name, url: path };
+    });
+
+    if (files.length > 0) {
+      onImagesLoaded(files, `${files.length} Images`);
+    } else {
+      throw new Error('No images found in manifest');
+    }
+  } catch (e) {
+    console.error('Manifest load error:', e);
+    document.getElementById('load-status').textContent = `Error loading images: ${e.message}. Check browser console.`;
+    document.getElementById('load-spinner').innerHTML = '❌';
+  }
+}
+
+function onImagesLoaded(files, folderName) {
+  images = files;
+  loadConfigs();
+  images.forEach((img, idx) => getConfig(img.name, idx));
+  saveConfigs();
+  document.getElementById('load-indicator').style.display = 'none';
+  renderSetupPreview(folderName || 'Images');
+}
+
+function renderSetupPreview(folderName) {
+  document.getElementById('setup-count').textContent = `${images.length} image${images.length !== 1 ? 's' : ''} loaded`;
+  document.getElementById('setup-folder').textContent = folderName;
+  const thumbs = document.getElementById('setup-thumbs');
+  thumbs.innerHTML = images.map(img =>
+    `<img class="setup-thumb" src="${img.url}" alt="${img.name}" title="${img.name}">`
+  ).join('');
+  document.getElementById('setup-loaded').classList.add('show');
+}
+
+// Auto-load manifest on page load
+window.addEventListener('load', loadImageManifest);
+document.getElementById('btn-start-game').addEventListener('click', () => startGame(images.map((_, i) => i)));
+
+// ── EDITOR SCREEN ────────────────────────────────────────────────
+
+function renderEditor() {
+  const list = document.getElementById('editor-list');
+  list.innerHTML = '';
+
+  if (!images || images.length === 0) {
+    list.innerHTML = '<div style="padding: 20px; color: var(--txd); text-align: center;">Loading images... Please wait or refresh the page.</div>';
+    return;
+  }
+
+  images.forEach((img, idx) => {
+    const cfg = getConfig(img.name, idx);
+    const card = document.createElement('div');
+    card.className = 'ecard';
+    card.dataset.idx = idx;
+    card.innerHTML = `
+      <div class="ecard-hdr">
+        <img class="ecard-thumb" src="${img.url}" alt="">
+        <div class="ecard-meta">
+          <div class="ecard-file">${img.name}</div>
+          <div class="ecard-ttl">${cfg.title}</div>
+        </div>
+        <span class="ecard-arr">&#9660;</span>
+      </div>
+      <div class="ecard-body">
+        <div class="er1">
+          <div class="ef">
+            <label class="ef-lbl">Title</label>
+            <input class="ef-title" type="text" value="${esc(cfg.title)}">
+          </div>
+          <div class="ef">
+            <div class="ef-lbl-row">
+              <label class="ef-lbl">Director's Brief</label>
+              <button class="ef-regen" type="button">&#8635; Auto-generate</button>
+            </div>
+            <textarea class="ef-desc">${esc(cfg.desc)}</textarea>
+          </div>
+        </div>
+        <div class="er2">
+          <div class="ef">
+            <label class="ef-lbl">Target EV</label>
+            <input class="ef-ev" type="number" min="4" max="20" value="${cfg.targetEV}">
+          </div>
+          <div class="ef">
+            <label class="ef-lbl">Target WB</label>
+            <select class="ef-wb">
+              <option value="3200" ${cfg.targetWB==3200?'selected':''}>3200K</option>
+              <option value="4500" ${cfg.targetWB==4500?'selected':''}>4500K</option>
+              <option value="5600" ${cfg.targetWB==5600?'selected':''}>5600K</option>
+            </select>
+          </div>
+          <div class="ef">
+            <label class="ef-lbl">Lens</label>
+            <select class="ef-lens">
+              ${[14,24,35,50,85,200].map(v => `<option value="${v}" ${cfg.targetLens==v?'selected':''}>${v}mm</option>`).join('')}
+            </select>
+          </div>
+          <div class="ef">
+            <label class="ef-lbl">Req FPS</label>
+            <select class="ef-fps">
+              ${[24,60,120].map(v => `<option value="${v}" ${cfg.reqFps==v?'selected':''}>${v}fps</option>`).join('')}
+            </select>
+          </div>
+          <div class="ef">
+            <label class="ef-lbl">Depth of Field</label>
+            <select class="ef-dof">
+              <option value="" ${!cfg.reqDof?'selected':''}>Any</option>
+              <option value="shallow" ${cfg.reqDof==='shallow'?'selected':''}>Shallow</option>
+              <option value="deep"    ${cfg.reqDof==='deep'?'selected':''}>Deep</option>
+            </select>
+          </div>
+          <div class="ef">
+            <label class="ef-lbl">Blur at TV &lt;</label>
+            <select class="ef-mintv">
+              ${Object.entries(SHUTTERS).map(([tv, lbl]) =>
+                `<option value="${tv}" ${cfg.minTvForBlur==tv?'selected':''}>${lbl}</option>`
+              ).join('')}
+            </select>
+          </div>
+        </div>
+      </div>`;
+
+    // Toggle expand
+    card.querySelector('.ecard-hdr').addEventListener('click', () => {
+      card.classList.toggle('open');
+    });
+
+    // Auto-generate description from current settings
+    card.querySelector('.ef-regen').addEventListener('click', e => {
+      e.stopPropagation();
+      const c = getConfig(img.name);
+      c.targetEV    = parseInt(card.querySelector('.ef-ev').value)    || 12;
+      c.targetWB    = parseInt(card.querySelector('.ef-wb').value);
+      c.targetLens  = parseInt(card.querySelector('.ef-lens').value);
+      c.reqFps      = parseInt(card.querySelector('.ef-fps').value);
+      c.reqDof      = card.querySelector('.ef-dof').value;
+      c.minTvForBlur= parseInt(card.querySelector('.ef-mintv').value);
+      const newDesc = generateDesc(c);
+      card.querySelector('.ef-desc').value = newDesc;
+      c.desc = newDesc;
+      saveConfigs();
+    });
+
+    // Auto-save on any change
+    function saveCard() {
+      const c = getConfig(img.name);
+      c.title       = card.querySelector('.ef-title').value.trim() || img.name;
+      c.desc        = card.querySelector('.ef-desc').value.trim();
+      c.targetEV    = parseInt(card.querySelector('.ef-ev').value) || 12;
+      c.targetWB    = parseInt(card.querySelector('.ef-wb').value);
+      c.targetLens  = parseInt(card.querySelector('.ef-lens').value);
+      c.reqFps      = parseInt(card.querySelector('.ef-fps').value);
+      c.reqDof      = card.querySelector('.ef-dof').value;
+      c.minTvForBlur= parseInt(card.querySelector('.ef-mintv').value);
+      card.querySelector('.ecard-ttl').textContent = c.title;
+      saveConfigs();
+    }
+    card.querySelectorAll('input, select, textarea').forEach(el => {
+      el.addEventListener('input', saveCard);
+      el.addEventListener('change', saveCard);
+    });
+
+    list.appendChild(card);
+  });
+}
+
+document.getElementById('btn-ed-back').addEventListener('click', () => showScreen('screen-setup'));
+document.getElementById('btn-ed-play').addEventListener('click', () => startGame(images.map((_, i) => i)));
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── GAME ENGINE ──────────────────────────────────────────────────
+
+function startGame(queue) {
+  const shuffled = [...queue];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  game.queue = shuffled;
+  game.qIdx  = 0;
+  game.returnToResults = false;
+  showScreen('screen-game');
+  loadScene();
+}
+
+function loadScene() {
+  const imgIdx = game.queue[game.qIdx];
+  const img = images[imgIdx];
+  const cfg = getConfig(img.name, imgIdx);
+  game.currentScenario = { imgIdx, img, cfg };
+
+  document.getElementById('scene-title').textContent = cfg.title;
+  document.getElementById('scene-logline').textContent = LOG_LINES[imgIdx] || '';
+  const bullets = cfg.desc.split('. ').map(s => s.trim().replace(/\.+$/, '')).filter(s => s.length > 10);
+  document.getElementById('scene-desc').innerHTML = '<ul>' + bullets.map(b => {
+    const colonIdx = b.indexOf(':');
+    if (colonIdx > 0) {
+      const label = b.substring(0, colonIdx + 1);
+      const rest = b.substring(colonIdx + 1);
+      return `<li><strong style="color: var(--acc); font-size: 1.15em; letter-spacing: 0.5px;">${label}</strong>${rest}.</li>`;
+    }
+    return `<li>${b}.</li>`;
+  }).join('') + '</ul>';
+  document.getElementById('target-img').src = img.url;
+  document.getElementById('player-img').src = img.url;
+
+  updateSceneCounter();
+  randomizeControls();
+  updateVisuals();
+}
+
+function updateSceneCounter() {
+  const total = game.queue.length;
+  const current = game.qIdx + 1;
+  document.getElementById('stat-scene').textContent = `${current}/${total}`;
+  document.getElementById('stat-score').textContent = totalScore();
+}
+
+function randomizeControls() {
+  if (!game.currentScenario) return;
+  const sc = game.currentScenario.cfg;
+
+  // Pick a random value that is guaranteed NOT the correct one
+  const pickWrong = (arr, correctVal) => {
+    const choices = arr.filter(v => v !== correctVal);
+    if (choices.length === 0) return arr[0];
+    return choices[Math.floor(Math.random() * choices.length)];
+  };
+
+  // Key settings: always pick wrong values to force students to figure them out
+  setSel('c-lens', pickWrong([14,24,35,50,85,200], sc.targetLens));
+  setSel('c-fps',  pickWrong([24,60,120], sc.reqFps));
+  setSel('c-shut', pickWrong([5,6,7,8,9,10,11,12], FPS_TO_TV[sc.reqFps]));
+  setSel('c-wb',   pickWrong([3200,4500,5600], sc.targetWB));
+
+  // Exposure: start very underexposed (f/22 + ISO 100) so the player image is visibly dark
+  // and different from the target, making it obvious something needs adjustment
+  setSel('c-ap',  9);  // f/22 — very stopped down
+  setSel('c-iso', 0);  // ISO 100 — least sensitive
+  document.getElementById('c-nd').value = 0;
+}
+function setSel(id, val) {
+  const el = document.getElementById(id);
+  for (let i = 0; i < el.options.length; i++) {
+    if (parseFloat(el.options[i].value) === parseFloat(val)) { el.selectedIndex = i; return; }
+  }
+}
+
+// ── VISUAL ENGINE ────────────────────────────────────────────────
+
+function getPlayerState() {
+  const av  = parseInt(document.getElementById('c-ap').value);
+  const tv  = parseInt(document.getElementById('c-shut').value);
+  const sv  = parseFloat(document.getElementById('c-iso').value);
+  const nd  = parseInt(document.getElementById('c-nd').value);
+  const wb  = parseInt(document.getElementById('c-wb').value);
+  const fps = parseInt(document.getElementById('c-fps').value);
+  const len = parseInt(document.getElementById('c-lens').value);
+  return { av, tv, sv, nd, wb, fps, len, ev: av + tv + sv + nd };
+}
+
+function updateVisuals() {
+  if (!game.currentScenario) return;
+  const p = getPlayerState();
+  const cfg = game.currentScenario.cfg;
+  const diff = cfg.targetEV - p.ev;
+
+  // Brightness & blur
+  const brightness = Math.max(0.08, 1 + diff * 0.6);
+  const blur = p.tv < cfg.minTvForBlur ? (cfg.minTvForBlur - p.tv) * 1.5 : 0;
+  const scale = p.len / cfg.targetLens;
+
+  const playerImg = document.getElementById('player-img');
+  playerImg.style.filter    = `brightness(${brightness.toFixed(3)}) blur(${blur.toFixed(1)}px)`;
+  playerImg.style.transform = `scale(${scale.toFixed(3)})`;
+
+  // Noise
+  document.getElementById('noise-ov').style.opacity =
+    p.sv <= -4 ? Math.min(0.65, Math.abs(p.sv + 4) * 0.16) : 0;
+
+  // WB tint
+  const tO = document.getElementById('tint-orange');
+  const tB = document.getElementById('tint-blue');
+  tO.style.opacity = tB.style.opacity = 0;
+  if (p.wb !== cfg.targetWB) {
+    if      (cfg.targetWB === 3200 && p.wb === 5600) tB.style.opacity = '0.58';
+    else if (cfg.targetWB === 5600 && p.wb === 3200) tO.style.opacity = '0.58';
+    else if (p.wb === 4500) {
+      if (cfg.targetWB === 3200) tB.style.opacity = '0.30';
+      else tO.style.opacity = '0.30';
+    } else if (cfg.targetWB === 4500 && p.wb === 3200) tO.style.opacity = '0.30';
+    else if (cfg.targetWB === 4500 && p.wb === 5600) tB.style.opacity = '0.30';
+  }
+
+  // EV Meter
+  const clamped = Math.max(-5, Math.min(5, diff));
+  const barLeft = 50;
+  const barW    = Math.abs(clamped) * 8;
+  const fill    = document.getElementById('ev-fill');
+  fill.style.width      = barW + '%';
+  fill.style.left       = clamped >= 0 ? '50%' : (50 - barW) + '%';
+  fill.style.background = Math.abs(diff) <= 0.5 ? 'var(--grn)' : diff > 0 ? 'var(--red)' : 'var(--acc2)';
+
+  const evValEl = document.getElementById('ev-val');
+  evValEl.textContent = (diff >= 0 ? '+' : '') + diff.toFixed(1);
+
+  document.getElementById('ev-diff-text').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(1);
+  document.getElementById('stat-ev').textContent = p.ev.toFixed(0);
+  document.getElementById('stat-score').textContent = totalScore();
+
+  // Control value labels
+  document.getElementById('v-lens').textContent = p.len + 'mm';
+  document.getElementById('v-fps').textContent  = p.fps + 'fps';
+  document.getElementById('v-shut').textContent = SHUTTERS[p.tv];
+  document.getElementById('v-ap').textContent   = APERTURES[p.av];
+  document.getElementById('v-iso').textContent  = ISO_LABELS[p.sv];
+  document.getElementById('v-nd').textContent   = 'ND ' + p.nd;
+  document.getElementById('v-wb').textContent   = p.wb + 'K';
+
+  drawHistogram(brightness);
+}
+
+function drawHistogram(brightness) {
+  const canvas = document.getElementById('hist-canvas');
+  const ctx    = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 120, 60);
+  const peak   = Math.min(119, Math.max(0, Math.round((brightness - 0.15) / (2.5 - 0.15) * 119)));
+  const spread = 18;
+  ctx.beginPath();
+  for (let x = 0; x < 120; x++) {
+    const d = x - peak;
+    const h = 52 * Math.exp(-(d * d) / (2 * spread * spread));
+    x === 0 ? ctx.moveTo(x, 60 - h) : ctx.lineTo(x, 60 - h);
+  }
+  ctx.lineTo(119, 60); ctx.lineTo(0, 60); ctx.closePath();
+  const g = ctx.createLinearGradient(0, 0, 120, 0);
+  g.addColorStop(0, 'rgba(100,180,255,.7)');
+  g.addColorStop(.5,'rgba(200,200,200,.8)');
+  g.addColorStop(1, 'rgba(255,200,100,.7)');
+  ctx.fillStyle = g; ctx.fill();
+  if (brightness > 1.8) { ctx.fillStyle = 'rgba(255,80,80,.85)'; ctx.fillRect(115,0,5,60); }
+  if (brightness < 0.3)  { ctx.fillStyle = 'rgba(80,150,255,.85)'; ctx.fillRect(0,0,5,60); }
+}
+
+// ── SCORING ──────────────────────────────────────────────────────
+
+function evaluateShot() {
+  const p   = getPlayerState();
+  const cfg = game.currentScenario.cfg;
+  const feedback = [];
+  let passed = 0;
+
+  // 1. Lens
+  const lensOk = p.len === cfg.targetLens;
+  feedback.push({ ok: lensOk, title: 'Focal Length',
+    detail: lensOk ? `${p.len}mm — correct lens.` : `${p.len}mm used, ${cfg.targetLens}mm required.` });
+  if (lensOk) passed++;
+
+  // 2. FPS
+  const fpsOk = p.fps === cfg.reqFps;
+  feedback.push({ ok: fpsOk, title: 'Frame Rate',
+    detail: fpsOk ? `${p.fps}fps — correct.` : `${p.fps}fps used, scene requires ${cfg.reqFps}fps.` });
+  if (fpsOk) passed++;
+
+  // 3. 180° Shutter
+  const reqTv    = FPS_TO_TV[cfg.reqFps];
+  const shutOk   = p.tv === reqTv;
+  feedback.push({ ok: shutOk, title: '180° Shutter Rule',
+    detail: shutOk
+      ? `${SHUTTERS[p.tv]} — correct 180° shutter for ${cfg.reqFps}fps.`
+      : `${SHUTTERS[p.tv]} set, but ${SHUTTERS[reqTv]} required for ${cfg.reqFps}fps.` });
+  if (shutOk) passed++;
+
+  // 4. Depth of Field
+  let dofOk = true, dofDetail = 'No DoF requirement for this scene.';
+  if (cfg.reqDof === 'shallow') {
+    dofOk = p.av <= 3;
+    dofDetail = dofOk ? `${APERTURES[p.av]} — shallow DoF.` : `${APERTURES[p.av]} too deep; need f/2.8 or wider.`;
+  } else if (cfg.reqDof === 'deep') {
+    dofOk = p.av >= 6;
+    dofDetail = dofOk ? `${APERTURES[p.av]} — deep focus.` : `${APERTURES[p.av]} too wide; need f/8 or smaller.`;
+  }
+  feedback.push({ ok: dofOk, title: 'Depth of Field', detail: dofDetail });
+  if (dofOk) passed++;
+
+  // 5. Exposure
+  const diff   = cfg.targetEV - p.ev;
+  const expOk  = Math.abs(diff) <= 0.5;
+  const expTag = diff > 0.5 ? 'UNDEREXPOSED' : diff < -0.5 ? 'OVEREXPOSED' : 'CORRECT';
+  feedback.push({ ok: expOk, title: `Exposure (${expTag})`,
+    detail: expOk ? `EV diff ${diff.toFixed(1)} — perfect.`
+      : `EV diff ${diff >= 0 ? '+' : ''}${diff.toFixed(1)} — adjust aperture, ISO, or ND.` });
+  if (expOk) passed++;
+
+  const totalPoints = passed * 20;
+  const allPerfect  = passed === 5;
+  return { feedback, totalPoints, allPerfect, passed, max: 5 };
+}
+
+function recordResult(result) {
+  const name = game.currentScenario.img.name;
+  const prev = game.results[name] || { bestScore: 0, attempts: 0, passed: false };
+  game.results[name] = {
+    bestScore:    Math.max(prev.bestScore, result.totalPoints),
+    attempts:     prev.attempts + 1,
+    passed:       prev.passed || result.allPerfect,
+    lastFeedback: result.feedback
+  };
+}
+
+function totalScore() {
+  return Object.values(game.results).reduce((s, r) => s + r.bestScore, 0);
+}
+
+// ── FEEDBACK MODAL ────────────────────────────────────────────────
+
+function showModal(result) {
+  recordResult(result);
+  const name = game.currentScenario.img.name;
+  const cfg  = game.currentScenario.cfg;
+
+  document.getElementById('modal-title').textContent = result.allPerfect ? '✦ Perfect Shot!' : 'Shot Evaluation';
+  document.getElementById('modal-title').style.color = result.allPerfect ? 'var(--acc)' : 'var(--tx)';
+  document.getElementById('modal-sub').textContent =
+    `${result.passed}/${result.max} criteria matched — ${cfg.title}`;
+
+  document.getElementById('modal-rows').innerHTML = result.feedback.map(f => `
+    <div class="fb-row">
+      <div class="fb-icon">${f.ok ? '✅' : '❌'}</div>
+      <div class="fb-text"><strong>${f.title}</strong><span>${f.detail}</span></div>
+    </div>`).join('');
+
+  document.getElementById('modal-pts').textContent = '+' + result.totalPoints;
+  document.getElementById('stat-score').textContent = totalScore();
+
+  const btns = document.getElementById('modal-btns');
+  btns.innerHTML = '';
+
+  const isLast = game.qIdx >= game.queue.length - 1;
+
+  if (!result.allPerfect) {
+    // Retry now (stay on scene)
+    const bRetry = document.createElement('button');
+    bRetry.className = 'btn-out';
+    bRetry.textContent = '↺ Retry Now';
+    bRetry.onclick = closeModal;
+    btns.appendChild(bRetry);
+  }
+
+  const bNext = document.createElement('button');
+  bNext.className = 'btn-acc';
+  if (game.returnToResults) {
+    bNext.textContent = '← Back to Results';
+    bNext.onclick = () => { closeModal(); showResults(); };
+  } else if (isLast) {
+    bNext.textContent = '★ See Results';
+    bNext.onclick = () => { closeModal(); showResults(); };
+  } else {
+    bNext.textContent = '→ Next Scene';
+    bNext.onclick = () => { closeModal(); advanceScene(); };
+  }
+  btns.appendChild(bNext);
+
+  document.getElementById('modal-backdrop').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-backdrop').classList.remove('open');
+}
+
+function advanceScene() {
+  game.qIdx++;
+  if (game.qIdx >= game.queue.length) {
+    showResults();
+  } else {
+    loadScene();
+  }
+}
+
+// ── RESULTS SCREEN ────────────────────────────────────────────────
+
+function showResults() {
+  showScreen('screen-results');
+  renderResults();
+}
+
+function renderResults() {
+  const score   = totalScore();
+  const maxPoss = images.length * 100;
+  const pct     = maxPoss > 0 ? score / maxPoss * 100 : 0;
+  const passedCount = Object.values(game.results).filter(r => r.passed).length;
+  const totalPlayed = Object.keys(game.results).length;
+
+  document.getElementById('rs-score').textContent = score;
+  document.getElementById('rs-grade').textContent = grade(pct);
+  document.getElementById('rs-detail').textContent =
+    `${passedCount} of ${images.length} scenes passed  •  Max possible: ${maxPoss}`;
+
+  const list = document.getElementById('results-list');
+  list.innerHTML = '';
+
+  images.forEach((img, idx) => {
+    const r   = game.results[img.name];
+    const cfg = getConfig(img.name);
+    const pts = r ? r.bestScore : 0;
+    const pctW= pts / 100 * 100;
+    const passed = r && r.passed;
+
+    const card = document.createElement('div');
+    card.className = `rcard ${r ? (passed ? 'pass' : 'fail') : ''}`;
+    card.innerHTML = `
+      <img class="rcard-thumb" src="${img.url}" alt="${cfg.title}">
+      <div class="rcard-info">
+        <div class="rcard-title">${cfg.title}</div>
+        <div class="rcard-meta">${r ? `${r.attempts} attempt${r.attempts!==1?'s':''} &bull; Best: ${pts}/100` : 'Not attempted'}</div>
+      </div>
+      <div class="rcard-score">
+        <div class="rcard-pts">${pts}<span style="font-size:10px;color:var(--txd)">/100</span></div>
+        <div class="rcard-bar"><div class="rcard-fill" style="width:${pctW}%"></div></div>
+      </div>
+      <div class="rbadge ${passed ? 'pass' : 'fail'}">${passed ? '✓ PASS' : r ? '✗ FAIL' : '—'}</div>
+      <button class="rcard-retry" data-idx="${idx}">↺ Retry</button>`;
+
+    card.querySelector('.rcard-retry').addEventListener('click', () => retryScene(idx));
+    list.appendChild(card);
+  });
+
+  // Show/hide retry-failed button
+  const hasFailed = images.some(img => {
+    const r = game.results[img.name];
+    return !r || !r.passed;
+  });
+  document.getElementById('btn-retry-failed').style.opacity = hasFailed ? '1' : '0.35';
+  document.getElementById('btn-retry-failed').disabled = !hasFailed;
+}
+
+function grade(pct) {
+  if (pct >= 95) return '✦ A+ — Master Cinematographer!';
+  if (pct >= 80) return 'A — Excellent work, DP!';
+  if (pct >= 65) return 'B — Solid shooting.';
+  if (pct >= 50) return 'C — Getting there, keep practicing.';
+  if (pct >= 30) return 'D — Review the fundamentals.';
+  return 'F — Study up and try again.';
+}
+
+function retryScene(imageIdx) {
+  game.queue   = [imageIdx];
+  game.qIdx    = 0;
+  game.returnToResults = true;
+  showScreen('screen-game');
+  loadScene();
+}
+
+document.getElementById('btn-retry-failed').addEventListener('click', () => {
+  const failedIdx = images
+    .map((img, i) => ({ img, i }))
+    .filter(({ img }) => { const r = game.results[img.name]; return !r || !r.passed; })
+    .map(({ i }) => i);
+  if (failedIdx.length === 0) return;
+  game.queue = failedIdx;
+  game.qIdx  = 0;
+  game.returnToResults = false;
+  showScreen('screen-game');
+  loadScene();
+});
+
+document.getElementById('btn-play-all').addEventListener('click', () => {
+  game.queue = images.map((_, i) => i);
+  game.qIdx  = 0;
+  game.returnToResults = false;
+  showScreen('screen-game');
+  loadScene();
+});
+
+document.getElementById('btn-new-session').addEventListener('click', () => {
+  game.results = {};
+  game.queue = images.map((_, i) => i);
+  game.qIdx  = 0;
+  game.returnToResults = false;
+  showScreen('screen-game');
+  loadScene();
+});
+
+
+// ── GAME EVENT LISTENERS ──────────────────────────────────────────
+
+['c-lens','c-fps','c-shut','c-ap','c-iso','c-wb'].forEach(id =>
+  document.getElementById(id).addEventListener('change', updateVisuals));
+document.getElementById('c-nd').addEventListener('input', updateVisuals);
+
+document.getElementById('btn-record').addEventListener('click', () => {
+  const result = evaluateShot();
+  showModal(result);
+});
+
+document.getElementById('btn-to-results').addEventListener('click', () => {
+  showResults();
+});
+
+document.getElementById('modal-backdrop').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-backdrop')) closeModal();
+});
+</script>
+</body>
+</html>
