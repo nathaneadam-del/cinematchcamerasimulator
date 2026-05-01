@@ -1305,9 +1305,15 @@ function randomizeControls() {
   setSel('c-shut', pickWrong([5,6,7,8,9,10,11,12], FPS_TO_TV[sc.reqFps]));
   setSel('c-wb',   pickWrong([3200,4500,5600], sc.targetWB));
 
-  // Exposure: start very underexposed (f/22 + ISO 100) so the player image is visibly dark
-  // and different from the target, making it obvious something needs adjustment
-  setSel('c-ap',  9);  // f/22 — very stopped down
+  // Aperture: pick a wrong value that's clearly on the wrong side of the correct DoF.
+  // Shallow DoF needs wide aperture (low AV), so start stopped down: f/5.6–f/16 (AV 5–8).
+  // Deep DoF needs narrow aperture (high AV), so start wide open: f/1.4–f/4 (AV 1–4).
+  // This ensures opening/closing the aperture always moves exposure in a visible direction.
+  if (sc.reqDof === 'shallow') {
+    setSel('c-ap', 5 + Math.floor(Math.random() * 4)); // f/5.6, f/8, f/11, or f/16
+  } else {
+    setSel('c-ap', 1 + Math.floor(Math.random() * 4)); // f/1.4, f/2, f/2.8, or f/4
+  }
   setSel('c-iso', 0);  // ISO 100 — least sensitive
   document.getElementById('c-nd').value = 0;
 }
