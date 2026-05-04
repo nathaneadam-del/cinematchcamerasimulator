@@ -1331,7 +1331,7 @@ function parseDescSteps(desc) {
   const defs = [
     { label: 'FPS / Shutter', key: 'FPS/Shutter', num: 1 },
     { label: 'Lens',          key: 'Lens',         num: 2 },
-    { label: 'Aperture',      key: 'Aperture',      num: 3 },
+    { label: 'Aperture / Iris', key: 'Aperture',      num: 3 },
     { label: 'White Balance', key: 'White Balance', num: 4 },
     { label: 'Exposure',      key: 'Exposure',      num: 5 }
   ];
@@ -1349,6 +1349,15 @@ function parseDescSteps(desc) {
     steps.push({ num, label, preview, full: text });
   }
   return steps;
+}
+
+function toggleStep(hdr) {
+  const step = hdr.parentElement;
+  const isOpen = step.classList.contains('open');
+  // Close all steps first
+  document.querySelectorAll('.scene-step').forEach(s => s.classList.remove('open', 'active'));
+  // If it wasn't already open, open it
+  if (!isOpen) step.classList.add('open', 'active');
 }
 
 function highlightStep(stepNum) {
@@ -1376,7 +1385,7 @@ function loadScene() {
   const steps = parseDescSteps(cfg.desc);
   stepsEl.innerHTML = steps.map(s => `
     <div class="scene-step" data-step="${s.num}">
-      <div class="step-hdr" onclick="this.parentElement.classList.toggle('open')">
+      <div class="step-hdr" onclick="toggleStep(this)">
         <span class="step-num">${s.num}</span>
         <span class="step-lbl">${s.label}</span>
         <span class="step-preview">${s.preview}</span>
