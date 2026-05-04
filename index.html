@@ -1465,7 +1465,7 @@ function updateVisuals() {
   const diff = cfg.targetEV - p.ev;
 
   // Brightness & blur
-  const brightness = Math.max(0.08, 1 + diff * 0.6);
+  const brightness = Math.max(0.25, 1 + diff * 0.6);
   const blur = p.tv < cfg.minTvForBlur ? (cfg.minTvForBlur - p.tv) * 1.5 : 0;
   const scale = p.len / cfg.targetLens;
 
