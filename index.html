@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Magic Hour: Camera Simulator</title>
+<title>CineMatch: Camera Simulator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
@@ -20,7 +20,7 @@
   --red:      #ef5350;
   --grn:      #66bb6a;
   --tx:       #e0e0e0;
-  --txd:      #888;
+  --txd:      #aaa;
   --font:     'Montserrat', sans-serif;
 }
 html, body { height: 100%; overflow: hidden; }
@@ -206,7 +206,7 @@ body { background: var(--bg); color: var(--tx); font-family: var(--font); }
   letter-spacing: 2px; padding: 3px 7px; flex-shrink: 0; margin-top: 2px;
 }
 #scene-title   { font-size: 14px; font-weight: 700; color: var(--acc); letter-spacing: 0.2px; }
-#scene-logline { font-size: 11px; color: var(--txd); font-style: italic; line-height: 1.4; margin-top: 3px; }
+#scene-logline { font-size: 11px; color: var(--tx); font-style: italic; line-height: 1.4; margin-top: 3px; }
 
 /* Scene step accordions */
 .scene-step { border-top: 1px solid var(--bd); }
@@ -518,7 +518,7 @@ body { background: var(--bg); color: var(--tx); font-family: var(--font); }
 
 <!-- ─────────────────────────────────────────────────────── SETUP -->
 <div id="screen-setup" class="screen active">
-  <div class="setup-logo">&#9654; MAGIC HOUR</div>
+  <div class="setup-logo">&#9654; CINEMATCH</div>
   <div class="setup-sub">Camera Simulator for Film Students</div>
 
   <!-- ── Tutorial video — replace the placeholder div with a YouTube iframe ── -->
@@ -560,7 +560,7 @@ body { background: var(--bg); color: var(--tx); font-family: var(--font); }
 <div id="screen-game" class="screen">
 
   <div id="topbar">
-    <div class="tb-logo">&#9654; MAGIC HOUR</div>
+    <div class="tb-logo">&#9654; CINEMATCH</div>
     <div class="tb-stats">
       <div class="stat"><div class="stat-l">Scene</div><div class="stat-v" id="stat-scene">1/1</div></div>
       <div class="stat"><div class="stat-l">Score</div><div class="stat-v" id="stat-score">0</div></div>
